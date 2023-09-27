@@ -1,0 +1,43 @@
+version: '3'
+
+services:
+
+  queue:
+    image: rabbitmq
+    command: rabbitmq-server
+    expose:
+      - "5672"
+      - "15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: dockerfiles/dockerfile-api
+    volumes:
+      - .:/code
+    ports:
+      - "8080:8080"
+
+  worker:
+    build:
+      context: .
+      dockerfile: dockerfiles/dockerfile-worker
+    volumes:
+      - .:/code
+    depends_on:
+      queue:
+        condition: service_healthy
+
+  flower:
+    image: mher/flower
+    command: [ "celery", "--broker=amqp://guest:guest@queue:5672//", "flower" ]
+    ports:
+      - "5555:5555"
+    depends_on:
+      queue:
+        condition: service_healthy
