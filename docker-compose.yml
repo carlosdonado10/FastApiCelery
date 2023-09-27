@@ -18,10 +18,18 @@ services:
     build:
       context: .
       dockerfile: dockerfiles/dockerfile-api
+    environment:
+      - AWS_SECRET_ACCESS_KEY=x
+      - AWS_ACCESS_KEY_ID=x
     volumes:
       - .:/code
     ports:
       - "8080:8080"
+
+  queue_creation:
+    build:
+      context: .
+      dockerfile: dockerfiles/dockerfile-startqueue
 
   worker:
     build:
@@ -29,15 +37,21 @@ services:
       dockerfile: dockerfiles/dockerfile-worker
     volumes:
       - .:/code
+    environment:
+      - AWS_SECRET_ACCESS_KEY=x
+      - AWS_ACCESS_KEY_ID=x
     depends_on:
       queue:
         condition: service_healthy
+      queue_creation:
+        condition: 'service_completed_successfully'
 
-  flower:
-    image: mher/flower
-    command: [ "celery", "--broker=amqp://guest:guest@queue:5672//", "flower" ]
+  queue2:
+    image: softwaremill/elasticmq-native
     ports:
-      - "5555:5555"
-    depends_on:
-      queue:
-        condition: service_healthy
+      - 9324:9324
+    healthcheck:
+      test: wget -q -S -O - 127.0.0.1:9324/?Action=ListQueues
+      interval: 10s
+      timeout: 10s
+      retries: 5
